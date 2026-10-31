@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: cachesense
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/system-info

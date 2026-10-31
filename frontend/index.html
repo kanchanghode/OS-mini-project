@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#020617">
+  <title>CacheSense | Memory Latency Profiler</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    body {
+      background:
+        radial-gradient(ellipse at 12% 0%, rgba(14, 116, 144, .17), transparent 34rem),
+        radial-gradient(ellipse at 100% 20%, rgba(5, 150, 105, .12), transparent 28rem),
+        #020617;
+    }
+    .glass { background: rgba(24, 24, 27, .78); backdrop-filter: blur(14px); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+</head>
+<body class="min-h-full text-slate-100 antialiased">
+  <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <header class="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <div>
+        <div class="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-300">
+          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+          NATIVE BENCHMARK · LIVE STREAMING
+        </div>
+        <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">Cache<span class="text-emerald-400">Sense</span></h1>
+        <p class="mt-2 max-w-2xl text-sm text-slate-400">Explore dependent memory latency across working-set sizes, cache levels, and page strides.</p>
+      </div>
+      <div id="status-pill" class="flex w-fit items-center gap-2 rounded-full border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm text-slate-300" role="status">
+        <span id="status-dot" class="h-2 w-2 rounded-full bg-slate-500"></span>
+        <span id="status-text">Connecting to host…</span>
+      </div>
+    </header>
+
+    <section aria-label="Host hardware" class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <article class="glass rounded-2xl border border-white/5 p-4 sm:col-span-2">
+        <p class="text-xs uppercase tracking-wider text-slate-500">Host processor</p>
+        <p id="cpu-model" class="mt-2 truncate text-lg font-medium text-slate-100">Detecting CPU…</p>
+        <p id="cache-source" class="mt-1 text-xs text-slate-500">Cache-size source: checking…</p>
+      </article>
+      <article class="glass rounded-2xl border border-white/5 p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-500">L1 cache</p>
+        <p class="mt-2 text-2xl font-semibold text-sky-300"><span id="l1-size">—</span><span class="ml-1 text-sm font-normal text-slate-500">KB</span></p>
+      </article>
+      <article class="glass rounded-2xl border border-white/5 p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-500">L2 cache</p>
+        <p class="mt-2 text-2xl font-semibold text-violet-300"><span id="l2-size">—</span><span class="ml-1 text-sm font-normal text-slate-500">KB</span></p>
+      </article>
+      <article class="glass rounded-2xl border border-white/5 p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-500">L3 cache</p>
+        <p class="mt-2 text-2xl font-semibold text-emerald-300"><span id="l3-size">—</span><span class="ml-1 text-sm font-normal text-slate-500">KB</span></p>
+      </article>
+    </section>
+
+    <section class="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside class="glass h-fit rounded-2xl border border-white/5 p-5">
+        <h2 class="text-base font-semibold">Benchmark controls</h2>
+        <p class="mt-1 text-xs text-slate-500">Each point measures dependent-load latency.</p>
+
+        <fieldset class="mt-6">
+          <legend class="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Memory strides</legend>
+          <div class="space-y-3">
+            <label class="flex cursor-pointer items-center justify-between text-sm text-slate-300"><span>16 B <span class="text-xs text-slate-500">sub-line</span></span><input class="stride-check accent-sky-400" type="checkbox" value="16" checked></label>
+            <label class="flex cursor-pointer items-center justify-between text-sm text-slate-300"><span>64 B <span class="text-xs text-slate-500">cache line</span></span><input class="stride-check accent-amber-400" type="checkbox" value="64" checked></label>
+            <label class="flex cursor-pointer items-center justify-between text-sm text-slate-300"><span>256 B <span class="text-xs text-slate-500">multi-line</span></span><input class="stride-check accent-emerald-400" type="checkbox" value="256" checked></label>
+            <label class="flex cursor-pointer items-center justify-between text-sm text-slate-300"><span>4096 B <span class="text-xs text-slate-500">page stride</span></span><input class="stride-check accent-rose-400" type="checkbox" value="4096" checked></label>
+          </div>
+        </fieldset>
+
+        <div class="mt-6">
+          <label for="max-size" class="flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Maximum working set <span id="max-size-label" class="mono text-emerald-300">64 MB</span>
+          </label>
+          <input id="max-size" class="mt-4 w-full accent-emerald-400" type="range" min="4" max="65536" step="1" value="65536">
+          <div class="mt-1 flex justify-between text-[10px] text-slate-600"><span>4 KB</span><span>64 MB</span></div>
+        </div>
+
+        <div class="mt-5">
+          <label for="iterations" class="text-xs font-semibold uppercase tracking-wider text-slate-400">Accesses per point</label>
+          <select id="iterations" class="mt-2 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-200 outline-none focus:border-emerald-500">
+            <option value="1000000">1 million · quick</option>
+            <option value="5000000" selected>5 million · standard</option>
+            <option value="10000000">10 million · detailed</option>
+          </select>
+        </div>
+
+        <div class="mt-6 flex gap-2">
+          <button id="run-button" class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2.5 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40">
+            <svg id="run-spinner" class="hidden h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+            <span id="run-label">Run benchmark</span>
+          </button>
+          <button id="cancel-button" class="rounded-lg border border-slate-700 px-3 py-2.5 text-sm text-slate-300 transition hover:border-rose-400/50 hover:text-rose-300 disabled:cursor-not-allowed disabled:opacity-40" disabled>Cancel</button>
+        </div>
+        <div class="mt-4">
+          <div class="mb-1 flex justify-between text-xs text-slate-500"><span id="progress-label">Ready</span><span id="progress-value">0%</span></div>
+          <div class="h-1.5 overflow-hidden rounded-full bg-slate-800"><div id="progress-bar" class="h-full w-0 rounded-full bg-gradient-to-r from-sky-400 to-emerald-400 transition-all duration-300"></div></div>
+        </div>
+      </aside>
+
+      <div class="space-y-6">
+        <section class="glass rounded-2xl border border-white/5 p-4 sm:p-6">
+          <div class="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div><h2 class="text-base font-semibold">Latency by working-set size</h2><p class="mt-1 text-xs text-slate-500">Logarithmic X-axis · live measurements in nanoseconds per access</p></div>
+            <span id="point-count" class="rounded-full bg-slate-800 px-3 py-1 text-xs text-slate-400">0 measurements</span>
+          </div>
+          <div class="relative h-[360px] sm:h-[440px]"><canvas id="latency-chart" aria-label="Interactive cache latency chart" role="img"></canvas></div>
+        </section>
+
+        <section class="glass overflow-hidden rounded-2xl border border-white/5">
+          <div class="border-b border-white/5 px-5 py-4">
+            <h2 class="text-base font-semibold">Memory tier summary</h2>
+            <p class="mt-1 text-xs text-slate-500">Average observed latency grouped by approximate working-set tier.</p>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[560px] text-left text-sm">
+              <thead class="bg-slate-900/70 text-xs uppercase tracking-wider text-slate-500"><tr><th class="px-5 py-3">Memory tier</th><th class="px-5 py-3">Working set</th><th class="px-5 py-3">16 B</th><th class="px-5 py-3">64 B</th><th class="px-5 py-3">256 B</th><th class="px-5 py-3">4096 B</th></tr></thead>
+              <tbody id="summary-body" class="divide-y divide-white/5 text-slate-400"><tr><td class="px-5 py-3 text-slate-500" colspan="6">Run a benchmark to populate the summary.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </section>
+    <footer class="mt-8 text-center text-xs leading-relaxed text-slate-600">Cache boundaries are hardware-specific. A 4 KB stride can increase TLB pressure, but does not guarantee a TLB miss on every access.</footer>
+  </main>
+  <script src="/frontend/app.js"></script>
+</body>
+</html>

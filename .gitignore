@@ -1,0 +1,9 @@
+.venv/
+benchmark
+benchmark.exe
+/engine/benchmark
+/engine/benchmark.exe
+*.obj
+latency_data.csv
+cache_hierarchy.png
+__pycache__/
